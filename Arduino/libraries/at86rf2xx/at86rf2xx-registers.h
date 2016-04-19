@@ -334,6 +334,25 @@ extern "C" {
 #endif
 /** @} */
 
+
+
+#define PM_APBCMASK_RFCTRL_Pos      21
+
+#define MMIO_REG(mem_addr, type) (*(volatile type *)(mem_addr))
+#define RFCTRL_FECTRL MMIO_REG(0x42005400, uint16_t)
+
+// ANT_DIV
+#define ANT_SEL           7
+#define ANT_DIV_EN        3
+#define ANT_EXT_SW_EN     2
+#define ANT_CTRL          0
+
+#define DEFAULT_CHANNEL 18
+#define DEFAULT_ATTENUATION 0x07 //0dBm
+#define DEFAULT_ANTENNA 2 //ANT1 = SMA, ANT2 = CHIP
+#define DEFAULT_XTAL_TRIM 0x08 //midscale
+#define DEFAULT_XTAL_MODE 0xf0
+
 #ifdef __cplusplus
 }
 #endif

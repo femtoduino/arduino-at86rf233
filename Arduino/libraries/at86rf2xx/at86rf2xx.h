@@ -30,6 +30,7 @@
 
 #include <Arduino.h>
 #include <stdint.h>
+#define Serial SERIAL_PORT_USBVIRTUAL
 #include "ieee802154.h"
 #include "at86rf2xx-registers.h"
 #include "at86rf2xx-defaults.h"
@@ -50,6 +51,9 @@
  *          figure 7-8, p. 44.
  */
 #define AT86RF2XX_RESET_DELAY           (26U)
+
+#define MMIO_REG(mem_addr, type) (*(volatile type *)(mem_addr))
+#define RFCTRL_FECTRL MMIO_REG(0x42005400, uint16_t)
 
 class AT86RF2XX
 {
@@ -373,6 +377,11 @@ class AT86RF2XX
      *
      */
     void hardware_reset();
+
+    uint8_t spiWriteByteInline(const uint8_t value);
+
+    void trx_set_state(const uint8_t state);
+    void wait_state(const uint8_t state);
 
   private:
     int cs_pin;                         /**< chip select pin */

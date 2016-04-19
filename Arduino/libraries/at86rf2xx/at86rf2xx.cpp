@@ -45,7 +45,20 @@ AT86RF2XX::AT86RF2XX() {}
 
 int AT86RF2XX::init(int cs_pin_, int int_pin_, int sleep_pin_, int reset_pin_)
 {
-    Serial.println("[at86rf2xx] Booting radio device.");
+    Serial.println("[at86rf2xx] Booting radio.");
+    
+    
+    pinMode(PIN_RF1, OUTPUT);
+    pinMode(PIN_RF2, OUTPUT);
+
+    // PORT->Group[PORTA].PMUX[4].bit.PMUXO = PORT_PMUX_PMUXO_F_Val;
+    // PORT->Group[PORTA].PMUX[6].bit.PMUXE = PORT_PMUX_PMUXE_F_Val;
+
+    // Enable RFCTRL (AT86RF233 is internally connected to SERCOM4 SPI)
+    PM->APBCMASK.reg |= PM_APBCMASK_RFCTRL;
+    
+    // Change amount of shift.
+    RFCTRL_FECTRL = (0 << 4/*DIG1*/) | (1 << 2/*DIG2*/);
 
     /* initialize device descriptor */
     cs_pin = cs_pin_;
@@ -54,39 +67,112 @@ int AT86RF2XX::init(int cs_pin_, int int_pin_, int sleep_pin_, int reset_pin_)
     reset_pin = reset_pin_;
     idle_state = AT86RF2XX_STATE_TRX_OFF;
     state = AT86RF2XX_STATE_SLEEP;
-
+    //Serial.println("Setting pin modes...");
     /* setup GPIOs */
-    pinMode(reset_pin, OUTPUT);
-    pinMode(sleep_pin, OUTPUT);
-    pinMode(int_pin, INPUT);
-    pinMode(cs_pin, OUTPUT);
 
-    /* initialise SPI */
-    //  Set up SPI
-    SPI.begin();
-    //  Data is transmitted and received MSB first
-    SPI.setBitOrder(MSBFIRST);
-    //  SPI interface will run at 1MHz if 8MHz chip or 2Mhz if 16Mhz
-    SPI.setClockDivider(SPI_CLOCK_DIV8);
-    //  Data is clocked on the rising edge and clock is low when inactive
-    SPI.setDataMode(SPI_MODE0);
+    pinMode(sleep_pin,  OUTPUT);
+    pinMode(reset_pin,  OUTPUT);
+    pinMode(int_pin,    INPUT);
+    pinMode(cs_pin,     OUTPUT);
 
+    // digitalWrite(reset_pin, LOW);
+    // delay(1U);
+    // digitalWrite(reset_pin, HIGH);
+
+    // /* initialise SPI */
+    // //  Set up SPI
+    // SPI.begin(); 
+    // //  Data is transmitted and received MSB first
+    // SPI.setBitOrder(MSBFIRST);
+
+    // SPI.setClockDivider(SPI_CLOCK_DIV8);
+
+    // //  Data is clocked on the rising edge and clock is low when inactive
+    // SPI.setDataMode(SPI_MODE0);
+
+    SPI.beginTransaction(
+        SPISettings(
+            MODULE_AT86RF233_CLOCK, 
+            MSBFIRST, 
+            SPI_MODE0
+        )
+    );
+
+    attachInterrupt(int_pin, at86rf2xx_irq_handler, RISING);
+    
+
+    
     /*  wait for SPI to be ready  */
     delay(10);
 
+
     /*  initialize GPIOs */
-    digitalWrite(sleep_pin, LOW);
+    digitalWrite(sleep_pin, LOW); // Wake up
     digitalWrite(reset_pin, HIGH);
     digitalWrite(cs_pin, HIGH);
-    attachInterrupt(digitalPinToInterrupt(int_pin), at86rf2xx_irq_handler, RISING);
+
 
     /* make sure device is not sleeping, so we can query part number */
     assert_awake();
 
+    // Set Clock
+    reg_write(AT86RF2XX_REG__XOSC_CTRL, DEFAULT_XTAL_MODE | DEFAULT_XTAL_TRIM);
+    // reg_write(AT86RF2XX_REG__XOSC_CTRL, AT86RF2XX_XOSC_CTRL__XTAL_MODE_EXTERNAL);
+
+    // Set TX power
+    reg_write(AT86RF2XX_REG__PHY_TX_PWR, DEFAULT_ATTENUATION);
+    Serial.print("Status: ");
+    Serial.println(get_status(), HEX);
+    // CTRL
+    reg_write(AT86RF2XX_REG__TRX_CTRL_0, 0x01);
+    reg_write(AT86RF2XX_REG__TRX_CTRL_1, 0x00);
+    reg_write(AT86RF2XX_REG__TST_CTRL_DIGI, 0x0f);
+
+    Serial.print("ctrl_0: ");
+    Serial.println(reg_read(AT86RF2XX_REG__TRX_CTRL_0), HEX);
+    Serial.print("ctrl_1: ");
+    Serial.println(reg_read(AT86RF2XX_REG__TRX_CTRL_1), HEX);
+    Serial.print("ctrl_digi: ");
+    Serial.println(reg_read(AT86RF2XX_REG__TST_CTRL_DIGI), HEX);
+    // Manually set part number
+    // phyWriteRegister (PART_NUM_REG, 0x54);
+    // phyWriteRegister (PART_NUM_REG, 0x46);
+    reg_write(AT86RF2XX_REG__PART_NUM, 0x54);
+    reg_write(AT86RF2XX_REG__PART_NUM, 0x46);
+
+    // Turn on
+    // trx_set_state(AT86RF2XX_TRX_STATE__PLL_ON);
+    reg_write(AT86RF2XX_REG__TRX_STATE, AT86RF2XX_TRX_STATE__TX_START);
+
+
+    // Antenna Diversity control (FECTRL). ANT_CTRL = 0x00, ANT_EXT_SW_EN = 0x02
+    //reg_write(AT86RF2XX_REG__ANT_DIV, (1 << ANT_CTRL) | (1 << ANT_EXT_SW_EN));
+
     /* test if the SPI is set up correctly and the device is responding */
+    // byte version_num = reg_read(AT86RF2XX_REG__VERSION_NUM);
     byte part_num = reg_read(AT86RF2XX_REG__PART_NUM);
+    // byte man_id_0 = reg_read(AT86RF2XX_REG__MAN_ID_0);
+    // byte man_id_1 = reg_read(AT86RF2XX_REG__MAN_ID_1);
+    // byte rssi = reg_read(AT86RF2XX_REG__PHY_RSSI);
+
+    Serial.print("Part: 0x");
+    Serial.println(part_num, HEX);
+    
+    // Serial.print("Version: 0x");
+    // Serial.println(version_num, HEX);
+
+    // Serial.print("Man. ID (0): 0x");
+    // Serial.println(man_id_0, HEX);
+
+    // Serial.print("Man. ID (1): 0x");
+    // Serial.println(man_id_1, HEX);
+
+    // Serial.print("Rssi: 0x");
+    // Serial.println(rssi, HEX);
+
     if (part_num != AT86RF233_PARTNUM) {
-        Serial.println("[at86rf2xx] Error: unable to read correct part number.");
+        Serial.print("[at86rf2xx] Error: unable to read correct part number");
+
         return -1;
     }
     Serial.print("[at86rf2xx] Detected part #: 0x");
@@ -96,7 +182,7 @@ int AT86RF2XX::init(int cs_pin_, int int_pin_, int sleep_pin_, int reset_pin_)
 
     /* reset device to default values and put it into RX state */
     reset();
-
+    Serial.println("RESET complete");
     return 0;
 }
 
@@ -264,4 +350,19 @@ void AT86RF2XX::rx_read(uint8_t *data, size_t len, size_t offset)
 #else
     sram_read(offset, data, len);
 #endif
+}
+
+void AT86RF2XX::trx_set_state(uint8_t state)
+{
+    reg_write(AT86RF2XX_REG__TRX_STATE, AT86RF2XX_TRX_STATE__FORCE_TRX_OFF);
+    wait_state(AT86RF2XX_TRX_STATE__TRX_OFF);
+
+    reg_write(AT86RF2XX_REG__TRX_STATE, state);
+    wait_state(state);
+}
+
+void AT86RF2XX::wait_state(uint8_t state)
+{
+    while (state != (reg_read (AT86RF2XX_REG__TRX_STATUS) & AT86RF2XX_TRX_STATUS_MASK__TRX_STATUS))
+    ;
 }

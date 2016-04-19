@@ -29,22 +29,29 @@
 void AT86RF2XX::reg_write(const uint8_t addr,
                          const uint8_t value)
 {
-    byte writeCommand = addr | AT86RF2XX_ACCESS_REG | AT86RF2XX_ACCESS_WRITE;
+    byte writeCommand = AT86RF2XX_ACCESS_REG | AT86RF2XX_ACCESS_WRITE | addr;
     digitalWrite(cs_pin, LOW);
+    
     SPI.transfer(writeCommand);
     SPI.transfer(value);
+    // spiWriteByteInline(writeCommand);
+    // spiWriteByteInline(value);
+
     digitalWrite(cs_pin, HIGH);
 }
 
 uint8_t AT86RF2XX::reg_read(const uint8_t addr)
 {
     byte value;
-    byte readCommand = addr | AT86RF2XX_ACCESS_REG | AT86RF2XX_ACCESS_READ;
+    byte readCommand = AT86RF2XX_ACCESS_REG | AT86RF2XX_ACCESS_READ | addr;
     digitalWrite(cs_pin, LOW);
+
     SPI.transfer(readCommand);
     value = SPI.transfer(0x00);
-    digitalWrite(cs_pin, HIGH);
 
+    // spiWriteByteInline(readCommand);
+    // value = spiWriteByteInline(0x00);
+    digitalWrite(cs_pin, HIGH);
     return (uint8_t)value;
 }
 
@@ -91,8 +98,8 @@ void AT86RF2XX::fb_read(uint8_t *data,
 uint8_t AT86RF2XX::get_status()
 {
     /* if sleeping immediately return state */
-    if(state == AT86RF2XX_STATE_SLEEP)
-        return state;
+    // if(state == AT86RF2XX_STATE_SLEEP)
+    //     return state;
 
     return reg_read(AT86RF2XX_REG__TRX_STATUS) & AT86RF2XX_TRX_STATUS_MASK__TRX_STATUS;
 }
@@ -102,10 +109,11 @@ void AT86RF2XX::assert_awake()
     if(get_status() == AT86RF2XX_STATE_SLEEP) {
         /* wake up and wait for transition to TRX_OFF */
         digitalWrite(sleep_pin, LOW);
-        delayMicroseconds(AT86RF2XX_WAKEUP_DELAY);
+        delay(AT86RF2XX_WAKEUP_DELAY);
 
         /* update state */
         state = reg_read(AT86RF2XX_REG__TRX_STATUS) & AT86RF2XX_TRX_STATUS_MASK__TRX_STATUS;
+
     }
 }
 
@@ -127,4 +135,11 @@ void AT86RF2XX::force_trx_off()
 {
     reg_write(AT86RF2XX_REG__TRX_STATE, AT86RF2XX_TRX_STATE__FORCE_TRX_OFF);
     while (get_status() != AT86RF2XX_STATE_TRX_OFF);
+}
+
+uint8_t AT86RF2XX::spiWriteByteInline(uint8_t value)
+{
+    SERCOM4->SPI.DATA.reg = value;
+    while (!SERCOM4->SPI.INTFLAG.bit.RXC);
+    return SERCOM4->SPI.DATA.reg;
 }
