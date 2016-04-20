@@ -56,11 +56,11 @@ extern "C" {
  * @brief   SPI access specifiers
  * @{
  */
-#define AT86RF2XX_ACCESS_REG                                    (0x80)
-#define AT86RF2XX_ACCESS_FB                                     (0x20)
+#define AT86RF2XX_ACCESS_REG                                    (0x80) // decimal 128
+#define AT86RF2XX_ACCESS_FB                                     (0x20) // decimal 32            
 #define AT86RF2XX_ACCESS_SRAM                                   (0x00)
-#define AT86RF2XX_ACCESS_READ                                   (0x00)
-#define AT86RF2XX_ACCESS_WRITE                                  (0x40)
+#define AT86RF2XX_ACCESS_READ                                   (0<<6) // (0x00)
+#define AT86RF2XX_ACCESS_WRITE                                  (1<<6) //(0x40) // decimal 64            bin 01000000      (1 << 7)
 /** @} */
 
 /**

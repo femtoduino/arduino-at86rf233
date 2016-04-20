@@ -30,6 +30,7 @@ void AT86RF2XX::reg_write(const uint8_t addr,
                          const uint8_t value)
 {
     byte writeCommand = AT86RF2XX_ACCESS_REG | AT86RF2XX_ACCESS_WRITE | addr;
+    // byte writeCommand = ((1<<7) | (1<<6)) | addr;
     digitalWrite(cs_pin, LOW);
     
     SPI.transfer(writeCommand);
@@ -44,6 +45,8 @@ uint8_t AT86RF2XX::reg_read(const uint8_t addr)
 {
     byte value;
     byte readCommand = AT86RF2XX_ACCESS_REG | AT86RF2XX_ACCESS_READ | addr;
+    // byte readCommand = ((1<<7) | (0<<6)) | addr;
+
     digitalWrite(cs_pin, LOW);
 
     SPI.transfer(readCommand);
